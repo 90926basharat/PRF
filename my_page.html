@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>GeoJSON from GitHub with Toggle and Labels</title>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    #map { height: 500px; width: 100%; }
+    #toggleBtn {
+      margin: 10px;
+      padding: 8px 15px;
+      background: white;
+      border: 1px solid #ccc;
+      cursor: pointer;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>GeoJSON from GitHub</h1>
+  <button id="toggleBtn">Toggle Layer</button>
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const map = L.map('map').setView([0, 0], 2);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    const geojsonURL = 'https://raw.githubusercontent.com/90926basharat/PRF/main/Proposed_chackbandi_PMC.geojson';
+
+    let geojsonLayer = null;
+    let labelsLayer = L.layerGroup().addTo(map);
+
+    function onEachFeature(feature, layer) {
+      if (feature.properties) {
+        let popupContent = '<table>';
+        for (const key in feature.properties) {
+          popupContent += `<tr><th>${key}</th><td>${feature.properties[key]}</td></tr>`;
+        }
+        popupContent += '</table>';
+        layer.bindPopup(popupContent);
+      }
+    }
+
+    function pointToLayer(feature, latlng) {
+      if (feature.properties && feature.properties['field name']) {
+        const label = L.marker(latlng, {
+          icon: L.divIcon({
+            className: 'label',
+            html: feature.properties['field name'],
+            iconSize: [100, 20]
+          }),
+          interactive: false
+        });
+        labelsLayer.addLayer(label);
+      }
+      return null;
+    }
+
+    function style(feature) {
+      return {
+        color: 'red',
+        weight: 2,
+        fillOpacity: 0
+      };
+    }
+
+    function addGeoJSONLayer(data) {
+      if (geojsonLayer) {
+        map.removeLayer(geojsonLayer);
+        labelsLayer.clearLayers();
+      }
+
+      geojsonLayer = L.geoJSON(data, {
+        style: style,
+        onEachFeature: onEachFeature,
+        pointToLayer: pointToLayer
+      }).addTo(map);
+
+      map.fitBounds(geojsonLayer.getBounds());
+    }
+
+    fetch(geojsonURL)
+      .then(response => response.json())
+      .then(data => {
+        addGeoJSONLayer(data);
+      })
+      .catch(err => console.error('Error loading GeoJSON:', err));
+
+    const toggleBtn = document.getElementById('toggleBtn');
+    toggleBtn.addEventListener('click', () => {
+      if (map.hasLayer(geojsonLayer)) {
+        map.removeLayer(geojsonLayer);
+        labelsLayer.clearLayers();
+        toggleBtn.textContent = 'Show Layer';
+      } else {
+        map.addLayer(geojsonLayer);
+        geojsonLayer.eachLayer(layer => {
+          if (layer.feature.geometry.type === 'Point' && layer.feature.properties && layer.feature.properties['field name']) {
+            const latlng = layer.getLatLng();
+            const label = L.marker(latlng, {
+              icon: L.divIcon({
+                className: 'label',
+                html: layer.feature.properties['field name'],
+                iconSize: [100, 20]
+              }),
+              interactive: false
+            });
+            labelsLayer.addLayer(label);
+          }
+        });
+        toggleBtn.textContent = 'Hide Layer';
+      }
+    });
+  </script>
+</body>
+</html>
